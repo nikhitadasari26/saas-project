@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 -- Indexes for performance (Mandatory Requirement)
-CREATE INDEX idx_users_tenant ON users(tenant_id);
-CREATE INDEX idx_projects_tenant ON projects(tenant_id);
-CREATE INDEX idx_tasks_tenant_project ON tasks(tenant_id, project_id);
+-- Use IF NOT EXISTS to prevent errors on restart
+CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_projects_tenant ON projects(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_tenant_project ON tasks(tenant_id, project_id);

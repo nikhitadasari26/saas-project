@@ -1,5 +1,40 @@
-const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt'); // Required for password comparison
+const jwt = require('jsonwebtoken'); // Required for token generation
+const { pool } = require('../init-db'); // Required to talk to the database
 
+// API 1: Tenant Registration
+exports.registerTenant = async (req, res) => {
+    const { tenantName, subdomain, adminEmail, adminPassword, adminFullName } = req.body;
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN'); // Start transaction for atomicity
+
+        const tenantRes = await client.query(
+            `INSERT INTO tenants (name, subdomain, subscription_plan) 
+             VALUES ($1, $2, 'free') RETURNING id`,
+            [tenantName, subdomain]
+        );
+        const tenantId = tenantRes.rows[0].id;
+
+        const passwordHash = await bcrypt.hash(adminPassword, 10);
+        await client.query(
+            `INSERT INTO users (tenant_id, email, password_hash, full_name, role) 
+             VALUES ($1, $2, $3, $4, 'tenant_admin')`,
+            [tenantId, adminEmail, passwordHash, adminFullName]
+        );
+
+        await client.query('COMMIT');
+        res.status(201).json({ success: true, message: "Tenant registered" });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        res.status(409).json({ success: false, message: "Subdomain or email exists" });
+    } finally {
+        client.release();
+    }
+};
+
+// API 2: User Login
 exports.login = async (req, res) => {
     const { email, password, tenantSubdomain } = req.body;
 
@@ -50,7 +85,7 @@ exports.login = async (req, res) => {
             data: {
                 user: { id: user.id, email: user.email, role: user.role, tenantId: user.tenant_id },
                 token: token,
-                expiresIn: 86400 // 24 hours
+                expiresIn: 86400 
             }
         });
     } catch (err) {

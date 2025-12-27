@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth'); // Mandatory for isolation
+const auth = require('../middleware/auth');
+const projectController = require('../controllers/projectController');
 
-// Placeholder: You will create these functions in projectController.js
-router.post('/', auth, (req, res) => res.json({ message: "Create project" }));
-router.get('/', auth, (req, res) => res.json({ message: "List projects" }));
-router.put('/:projectId', auth, (req, res) => res.json({ message: "Update project" }));
-router.delete('/:projectId', auth, (req, res) => res.json({ message: "Delete project" }));
+// Ensure these names match the controller exports above
+router.post('/', auth, projectController.createProject);
+router.get('/', auth, projectController.listProjects);
 
 module.exports = router;

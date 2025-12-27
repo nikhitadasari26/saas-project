@@ -3,8 +3,18 @@ const cors = require('cors');
 const { pool, initializeDatabase } = require('./init-db');
 
 const app = express();
+const authRoutes = require('./routes/authRoutes');
+const tenantRoutes = require('./routes/tenantRoutes');
+const projectRoutes = require('./routes/projectRoutes');
+const userRoutes = require('./routes/userRoutes');
+
+
 app.use(cors());
 app.use(express.json());
+app.use('/api/auth', authRoutes);
+app.use('/api/tenants', tenantRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/tenants', userRoutes);
 
 // Mandatory Health Check
 app.get('/api/health', async (req, res) => {

@@ -43,30 +43,27 @@ exports.login = async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        // 1. Find user and their associated tenant in one query
+        // Update query to select password_hash
         const userRes = await pool.query(
-            `SELECT u.*, t.id as "tenantId" 
-             FROM users u 
-             JOIN tenants t ON u.tenant_id = t.id 
-             WHERE u.email = $1`, 
+            `SELECT id, email, password_hash, tenant_id FROM users WHERE email = $1`, 
             [email]
         );
 
         if (userRes.rows.length === 0) {
-            return res.status(404).json({ success: false, message: "User or Tenant not found" });
+            return res.status(404).json({ success: false, message: "User not found" });
         }
 
         const user = userRes.rows[0];
 
-        // 2. Check Password (Assuming you used bcrypt in Step 2)
-        const isMatch = await bcrypt.compare(password, user.password);
+        // Match the bcrypt check to the correct column name
+        const isMatch = await bcrypt.compare(password, user.password_hash);
+        
         if (!isMatch) {
-            return res.status(400).json({ success: false, message: "Invalid credentials" });
+            return res.status(401).json({ success: false, message: "Invalid credentials" });
         }
 
-        // 3. Generate Token with tenantId
         const token = jwt.sign(
-            { userId: user.id, tenantId: user.tenantId }, 
+            { userId: user.id, tenantId: user.tenant_id }, 
             process.env.JWT_SECRET, 
             { expiresIn: '1d' }
         );

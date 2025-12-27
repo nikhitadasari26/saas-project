@@ -40,25 +40,40 @@ exports.registerTenant = async (req, res) => {
 // API 2: Login
 // This MUST be named "login" to match your authRoutes.js
 exports.login = async (req, res) => {
-    const { email, password, tenantSubdomain } = req.body;
+    const { email, password } = req.body;
+
     try {
-        const tenantRes = await pool.query('SELECT id FROM tenants WHERE subdomain = $1', [tenantSubdomain]);
-        if (tenantRes.rows.length === 0) return res.status(404).json({ success: false, message: "Tenant not found" });
+        // 1. Find user and their associated tenant in one query
+        const userRes = await pool.query(
+            `SELECT u.*, t.id as "tenantId" 
+             FROM users u 
+             JOIN tenants t ON u.tenant_id = t.id 
+             WHERE u.email = $1`, 
+            [email]
+        );
 
-        const userRes = await pool.query('SELECT * FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantRes.rows[0].id]);
-        if (userRes.rows.length === 0) return res.status(401).json({ success: false, message: "Invalid credentials" });
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "User or Tenant not found" });
+        }
 
-        const isMatch = await bcrypt.compare(password, userRes.rows[0].password_hash);
-        if (!isMatch) return res.status(401).json({ success: false, message: "Invalid credentials" });
+        const user = userRes.rows[0];
 
+        // 2. Check Password (Assuming you used bcrypt in Step 2)
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ success: false, message: "Invalid credentials" });
+        }
+
+        // 3. Generate Token with tenantId
         const token = jwt.sign(
-            { userId: userRes.rows[0].id, tenantId: userRes.rows[0].tenant_id, role: userRes.rows[0].role },
-            process.env.JWT_SECRET || 'your_test_secret',
-            { expiresIn: '24h' }
+            { userId: user.id, tenantId: user.tenantId }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: '1d' }
         );
 
         res.status(200).json({ success: true, token });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ success: false, message: "Server error" });
     }
 };

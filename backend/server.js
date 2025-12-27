@@ -7,7 +7,7 @@ const authRoutes = require('./routes/authRoutes');
 const tenantRoutes = require('./routes/tenantRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const userRoutes = require('./routes/userRoutes');
-
+const taskRoutes = require('./routes/taskRoutes');
 
 app.use(cors());
 app.use(express.json());
@@ -15,6 +15,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tenants', userRoutes);
+app.use('/api/tasks', taskRoutes);
 
 // Mandatory Health Check
 app.get('/api/health', async (req, res) => {

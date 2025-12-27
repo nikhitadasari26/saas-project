@@ -15,10 +15,10 @@ const auth = (req, res, next) => {
         // Add user and tenantId to request object
         req.user = decoded;
         // Inside your auth middleware function
-        if (req.params.tenantId && parseInt(req.params.tenantId) !== decoded.tenantId) {
+        if (req.params.tenantId && req.params.tenantId !== decoded.tenantId) {
             return res.status(403).json({ 
                 success: false, 
-                 message: 'Access Denied: You cannot access another tenant\'s data' 
+                message: 'Access Denied: You cannot access another tenant\'s data' 
             });
         }
         next();

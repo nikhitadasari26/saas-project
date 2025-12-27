@@ -30,3 +30,61 @@ exports.addUser = async (req, res) => {
         res.status(409).json({ success: false, message: "Email already exists in this tenant" }); //
     }
 };
+
+// API 9: List Users
+exports.listUsers = async (req, res) => {
+    const tenantId = req.user.tenantId; // Use tenantId from JWT
+    try {
+        const result = await pool.query(
+            'SELECT id, email, full_name, role FROM users WHERE tenant_id = $1',
+            [tenantId]
+        );
+        res.status(200).json({ success: true, data: result.rows });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error fetching users" });
+    }
+};
+
+
+// API 10: Update User
+exports.updateUser = async (req, res) => {
+    const { userId } = req.params;
+    const { fullName, role } = req.body;
+    const tenantId = req.user.tenantId; // From Auth Middleware
+
+    try {
+        const result = await pool.query(
+            `UPDATE users SET full_name = $1, role = $2 
+             WHERE id = $3 AND tenant_id = $4 RETURNING id, email, full_name, role`,
+            [fullName, role, userId, tenantId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "User not found or access denied" });
+        }
+        res.status(200).json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error updating user" });
+    }
+};
+
+// API 11: Delete User
+exports.deleteUser = async (req, res) => {
+    const { userId } = req.params;
+    const tenantId = req.user.tenantId;
+
+    try {
+        // Prevent users from deleting data in other tenants
+        const result = await pool.query(
+            'DELETE FROM users WHERE id = $1 AND tenant_id = $2 RETURNING id',
+            [userId, tenantId]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        res.status(200).json({ success: true, message: "User deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error deleting user" });
+    }
+};

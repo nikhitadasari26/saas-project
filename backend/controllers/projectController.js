@@ -9,11 +9,11 @@ exports.getProjects = async (req, res) => {
 // API 12: Create Project
 exports.createProject = async (req, res) => {
     const { name, description } = req.body;
-    const tenantId = req.user.tenantId; // From Auth Middleware
+    const tenantId = req.user.tenantId; 
     const userId = req.user.userId;
 
     try {
-        // Enforce Subscription Limits
+        // 1. Enforce Subscription Limits (Your existing code)
         const tenantRes = await pool.query('SELECT max_projects FROM tenants WHERE id = $1', [tenantId]);
         const projectCountRes = await pool.query('SELECT COUNT(*) FROM projects WHERE tenant_id = $1', [tenantId]);
         
@@ -21,10 +21,18 @@ exports.createProject = async (req, res) => {
             return res.status(403).json({ success: false, message: "Project limit reached" });
         }
 
+        // 2. Insert the Project (Your existing code)
         const newProject = await pool.query(
             `INSERT INTO projects (tenant_id, name, description, created_by) 
              VALUES ($1, $2, $3, $4) RETURNING *`,
             [tenantId, name, description, userId]
+        );
+
+        // 3. ADD THIS: Log the creation in audit_logs
+        await pool.query(
+            `INSERT INTO audit_logs (tenant_id, user_id, action, target_type, target_id) 
+             VALUES ($1, $2, $3, $4, $5)`,
+            [tenantId, userId, 'CREATE_PROJECT', 'PROJECT', newProject.rows[0].id]
         );
 
         res.status(201).json({ success: true, data: newProject.rows[0] });
@@ -77,14 +85,21 @@ exports.deleteProject = async (req, res) => {
 
     try {
         const result = await pool.query(
-            'DELETE FROM projects WHERE id = $1 AND tenant_id = $2 RETURNING id',
+            'DELETE FROM projects WHERE id = $1 AND tenant_id = $2 RETURNING name',
             [projectId, tenantId]
         );
 
-        if (result.rowCount === 0) {
-            return res.status(404).json({ success: false, message: "Project not found" });
+        if (result.rowCount > 0) {
+            // INSERT INTO audit_logs
+            await pool.query(
+                `INSERT INTO audit_logs (tenant_id, user_id, action, target_type, target_id) 
+                 VALUES ($1, $2, $3, $4, $5)`,
+                [tenantId, req.user.userId, 'DELETE_PROJECT', 'PROJECT', projectId]
+            );
+            
+            return res.status(200).json({ success: true, message: "Project deleted and logged" });
         }
-        res.status(200).json({ success: true, message: "Project deleted successfully" });
+        res.status(404).json({ success: false, message: "Project not found" });
     } catch (err) {
         res.status(500).json({ success: false, message: "Error deleting project" });
     }

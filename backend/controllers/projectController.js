@@ -48,3 +48,44 @@ exports.listProjects = async (req, res) => {
         res.status(500).json({ success: false, message: "Error fetching projects" });
     }
 };
+
+exports.updateProject = async (req, res) => {
+    const { projectId } = req.params;
+    const { name, description, status } = req.body;
+    const tenantId = req.user.tenantId;
+
+    try {
+        const result = await pool.query(
+            `UPDATE projects SET name = $1, description = $2, status = $3 
+             WHERE id = $4 AND tenant_id = $5 RETURNING *`,
+            [name, description, status, projectId, tenantId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        res.status(200).json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error updating project" });
+    }
+};
+
+// API 15: Delete Project
+exports.deleteProject = async (req, res) => {
+    const { projectId } = req.params;
+    const tenantId = req.user.tenantId;
+
+    try {
+        const result = await pool.query(
+            'DELETE FROM projects WHERE id = $1 AND tenant_id = $2 RETURNING id',
+            [projectId, tenantId]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        res.status(200).json({ success: true, message: "Project deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error deleting project" });
+    }
+};

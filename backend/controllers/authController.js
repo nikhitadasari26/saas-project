@@ -13,7 +13,7 @@ exports.registerTenant = async (req, res) => {
         // Create tenant with default limits
         const tenantRes = await client.query(
             `INSERT INTO tenants (name, subdomain, subscription_plan, max_users, max_projects) 
-             VALUES ($1, $2, 'free', 5, 3) RETURNING id, subdomain`, 
+             VALUES ($1, $2, 'free', 5, 3) RETURNING id, subdomain`,
             [tenantName, subdomain]
         );
         const tenantId = tenantRes.rows[0].id;
@@ -26,16 +26,16 @@ exports.registerTenant = async (req, res) => {
         );
 
         await client.query('COMMIT');
-        
+
         // Response must follow exact format
-        res.status(201).json({ 
-            success: true, 
+        res.status(201).json({
+            success: true,
             message: "Tenant registered successfully",
-            data: { 
+            data: {
                 tenantId: tenantId,
                 subdomain: tenantRes.rows[0].subdomain,
                 adminUser: userRes.rows[0]
-            } 
+            }
         });
     } catch (err) {
         await client.query('ROLLBACK');
@@ -49,10 +49,10 @@ exports.registerTenant = async (req, res) => {
 exports.login = async (req, res) => {
     // Destructure both possible names to be safe
     // This picks up whichever name the frontend sends
-const { email, password, tenantSubdomain, subdomain } = req.body;
-const finalSubdomain = tenantSubdomain || subdomain; 
+    const { email, password, tenantSubdomain, subdomain } = req.body;
+    const finalSubdomain = tenantSubdomain || subdomain;
 
-// Then use finalSubdomain in your query
+    // Then use finalSubdomain in your query
 
     try {
         // Must join with tenants to verify subdomain and status
@@ -61,7 +61,7 @@ const finalSubdomain = tenantSubdomain || subdomain;
              FROM users u 
              LEFT JOIN tenants t ON u.tenant_id = t.id 
              WHERE LOWER(u.email) = LOWER($1) 
-             AND (LOWER(t.subdomain) = $2 OR u.role = 'super_admin')`, 
+             AND (LOWER(t.subdomain) = $2 OR u.role = 'super_admin')`,
             [email, finalSubdomain]
         );
 
@@ -77,24 +77,22 @@ const finalSubdomain = tenantSubdomain || subdomain;
         }
 
         const isMatch = await bcrypt.compare(password, user.password_hash);
-if (!isMatch) {
-    // TEMPORARY BYPASS: Delete this after you log in!
-    if (password === 'Password123!') {
-        console.log("Bypassing hash check for emergency login");
-    } else {
-        return res.status(401).json({ success: false, message: "Invalid credentials" });
-    }
-}
+
+        if (!isMatch) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid credentials"
+            });
+        }
 
         // Token must contain userId, tenantId, and role
         const token = jwt.sign(
-            { userId: user.id, tenantId: user.tenant_id, role: user.role }, 
-            process.env.JWT_SECRET || 'your_secret_key', 
+            { userId: user.id, tenantId: user.tenant_id, role: user.role },
+            process.env.JWT_SECRET || 'your_secret_key',
             { expiresIn: '24h' }
         );
-
-        res.status(200).json({ 
-            success: true, 
+        res.status(200).json({
+            success: true,
             data: {
                 user: {
                     id: user.id,
@@ -123,7 +121,7 @@ exports.getMe = async (req, res) => {
                     t.subscription_plan, t.max_users, t.max_projects
              FROM users u 
              LEFT JOIN tenants t ON u.tenant_id = t.id 
-             WHERE u.id = $1`, 
+             WHERE u.id = $1`,
             [req.user.userId]
         );
 
@@ -160,6 +158,6 @@ exports.logout = async (req, res) => {
         'INSERT INTO audit_logs (tenant_id, user_id, action, entity_type) VALUES ($1, $2, $3, $4)',
         [req.user.tenantId, req.user.userId, 'LOGOUT', 'user']
     );
-    
+
     res.status(200).json({ success: true, message: "Logged out successfully" });
 };

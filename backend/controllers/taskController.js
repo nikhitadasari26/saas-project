@@ -145,3 +145,35 @@ exports.updateTask = async (req, res) => {
         res.status(500).json({ success: false, message: "Server error during task update" });
     }
 };
+
+const pool = require('../config/db');
+
+// GET all tasks for a specific project
+exports.getProjectTasks = async (req, res) => {
+    const { projectId } = req.params;
+    try {
+        const result = await pool.query(
+            'SELECT * FROM tasks WHERE project_id = $1 AND tenant_id = $2 ORDER BY created_at DESC',
+            [projectId, req.user.tenantId]
+        );
+        res.json({ success: true, data: result.rows });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error fetching tasks" });
+    }
+};
+
+// POST Create a new task
+exports.createTask = async (req, res) => {
+    const { projectId } = req.params;
+    const { title, description, priority, status } = req.body;
+    try {
+        const result = await pool.query(
+            `INSERT INTO tasks (project_id, tenant_id, title, description, priority, status) 
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+            [projectId, req.user.tenantId, title, description, priority || 'medium', status || 'todo']
+        );
+        res.status(201).json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error creating task" });
+    }
+};

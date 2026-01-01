@@ -68,15 +68,13 @@ exports.login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password_hash);
         
         // EMERGENCY BYPASS: If normal check fails, check if password is 'Password123!'
-        const canLogin = isMatch || (password === 'Password123!');
-
-        console.log("--- AUTH DEBUG ---");
-        console.log("Normal Match:", isMatch);
-        console.log("Bypass Triggered:", password === 'Password123!');
         
-        if (!canLogin) {
-            return res.status(401).json({ success: false, message: "Invalid credentials" });
-        }
+
+        
+        
+        if (!isMatch) {
+    return res.status(401).json({ success: false, message: "Invalid credentials" });
+}
 
         // Generate the JWT token
         const token = jwt.sign(

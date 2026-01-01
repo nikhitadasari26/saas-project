@@ -16,7 +16,14 @@
           "email": "admin@demo.com",
           "password": "Demo@123",
           "role": "tenant_admin"
-        }
+        },
+        "users": [
+          {
+            "email": "user1@demo.com",
+            "password": "User@123",
+            "role": "user"
+          }
+        ]
       }
     ]
   }

@@ -1,9 +1,23 @@
 # Product Requirements Document (PRD)
 
 ## User Personas
-1. **Super Admin**: System-level administrator who manages all tenants and monitors global health.
-2. **Tenant Admin**: Organization owner who manages their own team, projects, and subscription.
-3. **End User**: Regular team member who creates projects and tracks tasks.
+### 1. Super Admin
+- **Role:** System Owner.
+- **Responsibilities:** Managing tenant status, updating subscription plans.
+- **Goals:** Ensure 100% system uptime and monitor tenant growth.
+- **Pain Points:** Hard to track thousands of tenants manually.
+
+### 2. Tenant Admin
+- **Role:** Business Owner.
+- **Responsibilities:** Managing team members and tracking project progress.
+- **Goals:** High team productivity and data security.
+- **Pain Points:** Risk of data leaking to other companies.
+
+### 3. End User
+- **Role:** Individual Contributor.
+- **Responsibilities:** Completing tasks and updating project status.
+- **Goals:** Clear view of daily tasks and deadlines.
+- **Pain Points:** System lag or confusing task assignments.
 
 ## Functional Requirements
 - **FR-001**: System shall allow tenant registration with a unique subdomain.

@@ -1,13 +1,16 @@
-// backend/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 
-// Verify that registerTenant and login are actually functions
-console.log('Register handler:', typeof authController.registerTenant);
-console.log('Login handler:', typeof authController.login);
+// ADD THIS LINE: This is what was missing!
+const authenticate = require('../middleware/authMiddleware'); 
 
+// Public Routes
 router.post('/register-tenant', authController.registerTenant);
 router.post('/login', authController.login);
+
+// Protected Routes (Now 'authenticate' is defined)
+router.get('/me', authenticate, authController.getMe);
+router.post('/logout', authenticate, authController.logout);
 
 module.exports = router;

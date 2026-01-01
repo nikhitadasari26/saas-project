@@ -1,25 +1,56 @@
-const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
 
 const pool = new Pool({
-    host: process.env.DB_HOST || 'database',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'password123',
-    database: process.env.DB_NAME || 'saas_db',
-    port: 5432,
+  user: process.env.DB_USER || 'postgres',
+  host: process.env.DB_HOST || 'database',
+  database: process.env.DB_NAME || 'saas_db',
+  password: process.env.DB_PASSWORD || 'password123',
+  port: 5432,
 });
 
 const initializeDatabase = async () => {
-    try {
-        console.log(" Initializing database...");
-        const sqlPath = path.join(__dirname, 'migrations', '001_initial_schema.sql');
-        const sql = fs.readFileSync(sqlPath, 'utf8');
-        await pool.query(sql);
-        console.log(" Database tables and indexes created.");
-    } catch (err) {
-        console.error("Initialization Error:", err.message);
-        process.exit(1);
+    let retries = 5;
+    while (retries > 0) {
+        try {
+            const client = await pool.connect();
+            console.log("✅ Database Connected - Starting Migrations");
+
+            // 1. Create the migrations table first to track progress
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS migrations (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) UNIQUE NOT NULL,
+                    executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
+            // 2. Run your migration files
+            const migrationsDir = path.join(__dirname, 'migrations');
+            const files = fs.readdirSync(migrationsDir).sort();
+
+            for (const file of files) {
+                const migrationName = file;
+                const check = await client.query('SELECT * FROM migrations WHERE name = $1', [migrationName]);
+                
+                if (check.rows.length === 0) {
+                    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+                    await client.query(sql);
+                    await client.query('INSERT INTO migrations (name) VALUES ($1)', [migrationName]);
+                    console.log(`Successfully Executed: ${file}`);
+                }
+            }
+
+            client.release();
+            console.log("✅ All Migrations Completed");
+            return; // Exit the function successfully
+        } catch (err) {
+            retries -= 1;
+            console.log(`❌ Connection failed (${err.message}). Retries left: ${retries}`);
+            if (retries === 0) throw err;
+            await new Promise(res => setTimeout(res, 3000)); // Wait 3 seconds
+        }
     }
 };
 

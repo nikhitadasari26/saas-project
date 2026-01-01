@@ -23,6 +23,7 @@ app.use('/api/tenants', tenantRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/stats', statsRoutes)
 
 // Mandatory Health Check
 app.get('/api/health', async (req, res) => {

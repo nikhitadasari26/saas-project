@@ -4,44 +4,32 @@ const { pool } = require('../init-db');
 
 // API 1: Register Tenant
 exports.registerTenant = async (req, res) => {
-    const { tenantName, subdomain, adminEmail, adminPassword, adminFullName } = req.body;
-    const client = await pool.connect();
-
+    const { organizationName, subdomain, email, fullName, password } = req.body;
+    
     try {
-        await client.query('BEGIN');
+        // 1. Check if subdomain is taken
+        const existingTenant = await pool.query('SELECT id FROM tenants WHERE subdomain = $1', [subdomain]);
+        if (existingTenant.rows.length > 0) {
+            return res.status(400).json({ success: false, message: "Subdomain already taken" });
+        }
 
-        // Create tenant with default limits
-        const tenantRes = await client.query(
-            `INSERT INTO tenants (name, subdomain, subscription_plan, max_users, max_projects) 
-             VALUES ($1, $2, 'free', 5, 3) RETURNING id, subdomain`,
-            [tenantName, subdomain]
+        // 2. Create Tenant
+        const tenantRes = await pool.query(
+            'INSERT INTO tenants (name, subdomain) VALUES ($1, $2) RETURNING id',
+            [organizationName, subdomain]
         );
         const tenantId = tenantRes.rows[0].id;
 
-        const passwordHash = await bcrypt.hash(adminPassword, 10);
-        const userRes = await client.query(
-            `INSERT INTO users (tenant_id, email, password_hash, full_name, role) 
-             VALUES ($1, $2, $3, $4, 'tenant_admin') RETURNING id, email, full_name, role`,
-            [tenantId, adminEmail, passwordHash, adminFullName]
+        // 3. Create Admin User
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await pool.query(
+            'INSERT INTO users (tenant_id, email, full_name, password_hash, role) VALUES ($1, $2, $3, $4, $5)',
+            [tenantId, email, fullName, hashedPassword, 'tenant_admin']
         );
 
-        await client.query('COMMIT');
-
-        // Response must follow exact format
-        res.status(201).json({
-            success: true,
-            message: "Tenant registered successfully",
-            data: {
-                tenantId: tenantId,
-                subdomain: tenantRes.rows[0].subdomain,
-                adminUser: userRes.rows[0]
-            }
-        });
+        res.status(201).json({ success: true, message: "Tenant and Admin created successfully" });
     } catch (err) {
-        await client.query('ROLLBACK');
-        res.status(409).json({ success: false, message: "Subdomain or email already exists" });
-    } finally {
-        client.release();
+        res.status(500).json({ success: false, message: "Registration failed" });
     }
 };
 

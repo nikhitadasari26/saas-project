@@ -122,3 +122,24 @@ exports.deleteUser = async (req, res) => {
         res.status(500).json({ success: false, message: "Error deleting user" });
     }
 };
+
+exports.updatePassword = async (req, res) => {
+    const { newPassword } = req.body;
+    const userId = req.user.id; // Extracted from the token by authMiddleware
+
+    try {
+        // Create a perfect hash inside the server environment
+        const salt = await bcrypt.genSalt(10);
+        const hashedBtn = await bcrypt.hash(newPassword, salt);
+
+        await pool.query(
+            'UPDATE users SET password_hash = $1 WHERE id = $2',
+            [hashedBtn, userId]
+        );
+
+        res.json({ success: true, message: "Password updated! You can now remove the bypass." });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: "Failed to update password" });
+    }
+};

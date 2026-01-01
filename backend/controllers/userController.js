@@ -147,3 +147,30 @@ exports.updatePassword = async (req, res) => {
         res.status(500).json({ success: false, message: "Server error during update" });
     }
 };
+// GET all users for the current tenant
+exports.getTenantUsers = async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT id, email, full_name, role, created_at FROM users WHERE tenant_id = $1 ORDER BY created_at DESC',
+            [req.user.tenantId]
+        );
+        res.json({ success: true, data: result.rows });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error fetching users" });
+    }
+};
+
+// POST Create a new user in the tenant
+exports.createUser = async (req, res) => {
+    const { email, full_name, password, role } = req.body;
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const result = await pool.query(
+            'INSERT INTO users (email, full_name, password_hash, role, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, full_name, role',
+            [email, full_name, hashedPassword, role || 'user', req.user.tenantId]
+        );
+        res.status(201).json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error creating user" });
+    }
+};

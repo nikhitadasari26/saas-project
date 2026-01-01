@@ -47,71 +47,58 @@ exports.registerTenant = async (req, res) => {
 
 // API 2: Login
 exports.login = async (req, res) => {
-    // Destructure both possible names to be safe
-    // This picks up whichever name the frontend sends
-    const { email, password, tenantSubdomain, subdomain } = req.body;
-    const finalSubdomain = tenantSubdomain || subdomain;
-
-    // Then use finalSubdomain in your query
+    const { email, password, tenantSubdomain } = req.body;
 
     try {
-        // Must join with tenants to verify subdomain and status
+        // Find the user and the tenant status
         const userRes = await pool.query(
-            `SELECT u.id, u.email, u.password_hash, u.tenant_id, u.role, u.full_name, t.status as tenant_status
+            `SELECT u.*, t.status as tenant_status 
              FROM users u 
-             LEFT JOIN tenants t ON u.tenant_id = t.id 
-             WHERE LOWER(u.email) = LOWER($1) 
-             AND (LOWER(t.subdomain) = $2 OR u.role = 'super_admin')`,
-            [email, finalSubdomain]
+             JOIN tenants t ON u.tenant_id = t.id 
+             WHERE LOWER(u.email) = LOWER($1) AND LOWER(t.subdomain) = LOWER($2)`,
+            [email, tenantSubdomain]
         );
 
         if (userRes.rows.length === 0) {
-            return res.status(404).json({ success: false, message: "User not found or incorrect subdomain" });
+            console.log("DEBUG: No user found for:", email, "in subdomain:", tenantSubdomain);
+            return res.status(401).json({ success: false, message: "Invalid credentials" });
         }
 
         const user = userRes.rows[0];
 
-        // Check if tenant is active
-        if (user.role !== 'super_admin' && user.tenant_status !== 'active') {
-            return res.status(403).json({ success: false, message: "Account suspended/inactive" });
-        }
-
+        // DEBUG LOGS
+        console.log("--- AUTH DEBUG START ---");
+        console.log("Input Password:", password);
+        console.log("Stored Hash:", user.password_hash);
+        
         const isMatch = await bcrypt.compare(password, user.password_hash);
+        console.log("Is Match:", isMatch);
+        console.log("--- AUTH DEBUG END ---");
 
         if (!isMatch) {
-            return res.status(401).json({
-                success: false,
-                message: "Invalid credentials"
-            });
+            return res.status(401).json({ success: false, message: "Invalid credentials" });
         }
 
-        // Token must contain userId, tenantId, and role
+        // Generate the JWT token
         const token = jwt.sign(
-            { userId: user.id, tenantId: user.tenant_id, role: user.role },
-            process.env.JWT_SECRET || 'your_secret_key',
+            { id: user.id, email: user.email, tenantId: user.tenant_id, role: user.role },
+            process.env.JWT_SECRET || 'fallback_secret',
             { expiresIn: '24h' }
         );
-        res.status(200).json({
+
+        res.json({
             success: true,
             data: {
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    fullName: user.full_name,
-                    role: user.role,
-                    tenantId: user.tenant_id,
-                    subdomain: finalSubdomain // Adding this so frontend can store it
-                },
                 token,
-                expiresIn: 86400
+                user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role }
             }
         });
+
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, message: "Server error" });
+        console.error("SERVER ERROR:", err);
+        res.status(500).json({ success: false, message: "Internal server error" });
     }
 };
-
 // API 3: Get Current User
 exports.getMe = async (req, res) => {
     try {

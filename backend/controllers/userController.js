@@ -125,21 +125,25 @@ exports.deleteUser = async (req, res) => {
 
 exports.updatePassword = async (req, res) => {
     const { newPassword } = req.body;
-    const userId = req.user.id; // Extracted from the token by authMiddleware
+    const userId = req.user.id; 
 
     try {
-        // Create a perfect hash inside the server environment
+        // 1. Generate hash on the server
         const salt = await bcrypt.genSalt(10);
         const hashedBtn = await bcrypt.hash(newPassword, salt);
 
-        await pool.query(
-            'UPDATE users SET password_hash = $1 WHERE id = $2',
+        // 2. Update and check if a row was actually changed
+        const result = await pool.query(
+            'UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id',
             [hashedBtn, userId]
         );
 
-        res.json({ success: true, message: "Password updated! You can now remove the bypass." });
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: "User not found in database" });
+        }
+
+        res.json({ success: true, message: "Password hash updated in DB!" });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, message: "Failed to update password" });
+        res.status(500).json({ success: false, message: "Server error during update" });
     }
 };

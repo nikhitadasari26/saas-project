@@ -9,68 +9,152 @@ exports.registerTenant = async (req, res) => {
 
     try {
         await client.query('BEGIN');
+
+        // Create tenant with default limits
         const tenantRes = await client.query(
-            `INSERT INTO tenants (name, subdomain, subscription_plan) 
-             VALUES ($1, $2, 'free') RETURNING id`, 
+            `INSERT INTO tenants (name, subdomain, subscription_plan, max_users, max_projects) 
+             VALUES ($1, $2, 'free', 5, 3) RETURNING id, subdomain`, 
             [tenantName, subdomain]
         );
         const tenantId = tenantRes.rows[0].id;
 
         const passwordHash = await bcrypt.hash(adminPassword, 10);
-        await client.query(
+        const userRes = await client.query(
             `INSERT INTO users (tenant_id, email, password_hash, full_name, role) 
-             VALUES ($1, $2, $3, $4, 'tenant_admin')`,
+             VALUES ($1, $2, $3, $4, 'tenant_admin') RETURNING id, email, full_name, role`,
             [tenantId, adminEmail, passwordHash, adminFullName]
         );
 
         await client.query('COMMIT');
+        
+        // Response must follow exact format
         res.status(201).json({ 
             success: true, 
-            message: "Tenant registered",
-            data: { tenantId: tenantId } 
+            message: "Tenant registered successfully",
+            data: { 
+                tenantId: tenantId,
+                subdomain: tenantRes.rows[0].subdomain,
+                adminUser: userRes.rows[0]
+            } 
         });
     } catch (err) {
         await client.query('ROLLBACK');
-        res.status(409).json({ success: false, message: "Subdomain or email exists" });
+        res.status(409).json({ success: false, message: "Subdomain or email already exists" });
     } finally {
         client.release();
     }
 };
 
 // API 2: Login
-// This MUST be named "login" to match your authRoutes.js
 exports.login = async (req, res) => {
-    const { email, password } = req.body;
+    // Destructure both possible names to be safe
+    // This picks up whichever name the frontend sends
+const { email, password, tenantSubdomain, subdomain } = req.body;
+const finalSubdomain = tenantSubdomain || subdomain; 
+
+// Then use finalSubdomain in your query
 
     try {
-        // Update query to select password_hash
+        // Must join with tenants to verify subdomain and status
         const userRes = await pool.query(
-            `SELECT id, email, password_hash, tenant_id FROM users WHERE email = $1`, 
-            [email]
+            `SELECT u.id, u.email, u.password_hash, u.tenant_id, u.role, u.full_name, t.status as tenant_status
+             FROM users u 
+             LEFT JOIN tenants t ON u.tenant_id = t.id 
+             WHERE LOWER(u.email) = LOWER($1) 
+             AND (LOWER(t.subdomain) = $2 OR u.role = 'super_admin')`, 
+            [email, finalSubdomain]
         );
 
         if (userRes.rows.length === 0) {
-            return res.status(404).json({ success: false, message: "User not found" });
+            return res.status(404).json({ success: false, message: "User not found or incorrect subdomain" });
         }
 
         const user = userRes.rows[0];
 
-        // Match the bcrypt check to the correct column name
+        // Check if tenant is active
+        if (user.role !== 'super_admin' && user.tenant_status !== 'active') {
+            return res.status(403).json({ success: false, message: "Account suspended/inactive" });
+        }
+
         const isMatch = await bcrypt.compare(password, user.password_hash);
-        
         if (!isMatch) {
             return res.status(401).json({ success: false, message: "Invalid credentials" });
         }
 
+        // Token must contain userId, tenantId, and role
         const token = jwt.sign(
-            { userId: user.id, tenantId: user.tenant_id }, 
-            process.env.JWT_SECRET, 
-            { expiresIn: '1d' }
+            { userId: user.id, tenantId: user.tenant_id, role: user.role }, 
+            process.env.JWT_SECRET || 'your_secret_key', 
+            { expiresIn: '24h' }
         );
 
-        res.status(200).json({ success: true, token });
+        res.status(200).json({ 
+            success: true, 
+            data: {
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    fullName: user.full_name,
+                    role: user.role,
+                    tenantId: user.tenant_id,
+                    subdomain: finalSubdomain // Adding this so frontend can store it
+                },
+                token,
+                expiresIn: 86400
+            }
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ success: false, message: "Server error" });
     }
+};
+
+// API 3: Get Current User
+exports.getMe = async (req, res) => {
+    try {
+        const userRes = await pool.query(
+            `SELECT u.id, u.email, u.full_name, u.role, u.is_active, 
+                    t.id as tenant_id, t.name as tenant_name, t.subdomain, 
+                    t.subscription_plan, t.max_users, t.max_projects
+             FROM users u 
+             LEFT JOIN tenants t ON u.tenant_id = t.id 
+             WHERE u.id = $1`, 
+            [req.user.userId]
+        );
+
+        if (userRes.rows.length === 0) return res.status(404).json({ success: false, message: "User not found" });
+
+        const user = userRes.rows[0];
+        res.status(200).json({
+            success: true,
+            data: {
+                id: user.id,
+                email: user.email,
+                fullName: user.full_name,
+                role: user.role,
+                isActive: user.is_active,
+                tenant: {
+                    id: user.tenant_id,
+                    name: user.tenant_name,
+                    subdomain: user.subdomain,
+                    subscriptionPlan: user.subscription_plan,
+                    maxUsers: user.max_users,
+                    maxProjects: user.max_projects
+                }
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+// API 4: Logout
+exports.logout = async (req, res) => {
+    // Log action in audit_logs
+    await pool.query(
+        'INSERT INTO audit_logs (tenant_id, user_id, action, entity_type) VALUES ($1, $2, $3, $4)',
+        [req.user.tenantId, req.user.userId, 'LOGOUT', 'user']
+    );
+    
+    res.status(200).json({ success: true, message: "Logged out successfully" });
 };

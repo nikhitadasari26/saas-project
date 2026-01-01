@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const { pool, initializeDatabase } = require('./init-db');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const authRoutes = require('./routes/authRoutes');
@@ -9,12 +11,17 @@ const projectRoutes = require('./routes/projectRoutes');
 const userRoutes = require('./routes/userRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001'], 
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/projects', projectRoutes);
-app.use('/api/tenants', userRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
 
 // Mandatory Health Check

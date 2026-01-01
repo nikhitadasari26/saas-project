@@ -77,9 +77,14 @@ const finalSubdomain = tenantSubdomain || subdomain;
         }
 
         const isMatch = await bcrypt.compare(password, user.password_hash);
-        if (!isMatch) {
-            return res.status(401).json({ success: false, message: "Invalid credentials" });
-        }
+if (!isMatch) {
+    // TEMPORARY BYPASS: Delete this after you log in!
+    if (password === 'Password123!') {
+        console.log("Bypassing hash check for emergency login");
+    } else {
+        return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+}
 
         // Token must contain userId, tenantId, and role
         const token = jwt.sign(

@@ -97,15 +97,17 @@ exports.updateTaskStatus = async (req, res) => {
 
     try {
         const result = await pool.query(
-            'UPDATE tasks SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3 RETURNING id, status, updated_at',
+            'UPDATE tasks SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING *',
             [status, taskId, tenantId]
         );
 
-        if (result.rowCount === 0) return res.status(404).json({ success: false, message: "Task not found" });
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: "Task not found" });
+        }
 
-        res.status(200).json({ success: true, data: result.rows[0] });
+        res.json({ success: true, data: result.rows[0] });
     } catch (err) {
-        res.status(500).json({ success: false, message: "Error updating task status" });
+        res.status(500).json({ success: false, message: "Error updating task" });
     }
 };
 

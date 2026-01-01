@@ -9,6 +9,7 @@ router.get('/projects/:projectId/tasks', auth, taskController.getTasksByProject)
 
 // Note: API 18 and 19 use task-based paths
 router.patch('/:taskId/status', auth, taskController.updateTaskStatus);
+
 router.put('/:taskId', auth, taskController.updateTask);
 
 module.exports = router;

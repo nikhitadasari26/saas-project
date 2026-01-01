@@ -122,7 +122,30 @@ exports.deleteUser = async (req, res) => {
         res.status(500).json({ success: false, message: "Error deleting user" });
     }
 };
+exports.deleteUser = async (req, res) => {
+    const { userId } = req.params;
+    const { tenantId, role } = req.user;
 
+    try {
+        // Only tenant_admins should be allowed to delete users
+        if (role !== 'tenant_admin') {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+
+        const result = await pool.query(
+            'DELETE FROM users WHERE id = $1 AND tenant_id = $2 RETURNING *',
+            [userId, tenantId]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: "User not found in your organization" });
+        }
+
+        res.json({ success: true, message: "User removed successfully" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error deleting user" });
+    }
+};
 exports.updatePassword = async (req, res) => {
     const { newPassword } = req.body;
     const userId = req.user.id; 

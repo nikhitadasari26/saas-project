@@ -10,6 +10,7 @@ const tenantRoutes = require('./routes/tenantRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const userRoutes = require('./routes/userRoutes');
 const taskRoutes = require('./routes/taskRoutes');
+const statsRoutes = require('./routes/statsRoutes');
 
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:3001'], 
@@ -26,15 +27,22 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/stats', statsRoutes)
 
 // Mandatory Health Check
+// Health Check Endpoint (Step 5.2.1)
 app.get('/api/health', async (req, res) => {
-    try {
-        await pool.query('SELECT 1');
-        res.status(200).json({ status: "ok", database: "connected" });
-    } catch (err) {
-        res.status(500).json({ status: "error", database: "disconnected" });
-    }
+  try {
+    const dbStatus = await pool.query('SELECT 1'); // Check DB connection
+    res.status(200).json({ 
+      status: "ok", 
+      database: "connected" 
+    });
+  } catch (err) {
+    res.status(503).json({ 
+      status: "error", 
+      database: "disconnected", 
+      message: err.message 
+    });
+  }
 });
-
 const startServer = async () => {
     // RUN MIGRATIONS AUTOMATICALLY
     await initializeDatabase();

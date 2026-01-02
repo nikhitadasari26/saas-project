@@ -2,8 +2,9 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../init-db');
 
-// API 1: Register Tenant
+// API 1: Register Tenant (Step 4.1)
 exports.registerTenant = async (req, res) => {
+    // Destructure exactly what the frontend sends
     const { organizationName, subdomain, email, fullName, password } = req.body;
     
     try {
@@ -13,7 +14,7 @@ exports.registerTenant = async (req, res) => {
             return res.status(400).json({ success: false, message: "Subdomain already taken" });
         }
 
-        // 2. Create Tenant
+        // 2. Create Tenant (Step 4.1)
         const tenantRes = await pool.query(
             'INSERT INTO tenants (name, subdomain) VALUES ($1, $2) RETURNING id',
             [organizationName, subdomain]
@@ -29,12 +30,15 @@ exports.registerTenant = async (req, res) => {
 
         res.status(201).json({ success: true, message: "Tenant and Admin created successfully" });
     } catch (err) {
-        res.status(500).json({ success: false, message: "Registration failed" });
+        // Log the exact DB error to your terminal so you can see it!
+        console.error("REGISTRATION DB ERROR:", err.message); 
+        res.status(500).json({ success: false, message: "Registration failed: " + err.message });
     }
 };
 
-// API 2: Login
+// API 2: Login (Step 4.1)
 exports.login = async (req, res) => {
+    // Frontend sends 'tenantSubdomain'
     const { email, password, tenantSubdomain } = req.body;
 
     try {
@@ -52,25 +56,21 @@ exports.login = async (req, res) => {
 
         const user = userRes.rows[0];
         
-        // Check password normally
+        // Verify Password
         const isMatch = await bcrypt.compare(password, user.password_hash);
         
-        // EMERGENCY BYPASS: If normal check fails, check if password is 'Password123!'
-        
-
-        
-        
         if (!isMatch) {
-    return res.status(401).json({ success: false, message: "Invalid credentials" });
-}
+            return res.status(401).json({ success: false, message: "Invalid credentials" });
+        }
 
-        // Generate the JWT token
+        // Generate the JWT token (Step 4.1)
         const token = jwt.sign(
             { id: user.id, email: user.email, tenantId: user.tenant_id, role: user.role },
             process.env.JWT_SECRET || 'fallback_secret',
             { expiresIn: '24h' }
         );
 
+        // Sending data in the structure expected by the frontend
         res.json({
             success: true,
             data: {
@@ -80,21 +80,24 @@ exports.login = async (req, res) => {
         });
 
     } catch (err) {
-        console.error("SERVER ERROR:", err);
+        console.error("SERVER LOGIN ERROR:", err);
         res.status(500).json({ success: false, message: "Internal server error" });
     }
 };
-// API 3: Get Current User
+
+// API 3: Get Current User (Step 4.1 & 4.2)
 exports.getMe = async (req, res) => {
     try {
+        // Note: Ensure your auth middleware sets req.user.id correctly
+        const userId = req.user.id; 
+
         const userRes = await pool.query(
             `SELECT u.id, u.email, u.full_name, u.role, u.is_active, 
-                    t.id as tenant_id, t.name as tenant_name, t.subdomain, 
-                    t.subscription_plan, t.max_users, t.max_projects
+                    t.id as tenant_id, t.name as tenant_name, t.subdomain 
              FROM users u 
              LEFT JOIN tenants t ON u.tenant_id = t.id 
              WHERE u.id = $1`,
-            [req.user.userId]
+            [userId]
         );
 
         if (userRes.rows.length === 0) return res.status(404).json({ success: false, message: "User not found" });
@@ -107,29 +110,20 @@ exports.getMe = async (req, res) => {
                 email: user.email,
                 fullName: user.full_name,
                 role: user.role,
-                isActive: user.is_active,
                 tenant: {
                     id: user.tenant_id,
                     name: user.tenant_name,
-                    subdomain: user.subdomain,
-                    subscriptionPlan: user.subscription_plan,
-                    maxUsers: user.max_users,
-                    maxProjects: user.max_projects
+                    subdomain: user.subdomain
                 }
             }
         });
     } catch (err) {
+        console.error("GET_ME ERROR:", err);
         res.status(500).json({ success: false, message: "Server error" });
     }
 };
 
-// API 4: Logout
+// API 4: Logout (Step 4.1)
 exports.logout = async (req, res) => {
-    // Log action in audit_logs
-    await pool.query(
-        'INSERT INTO audit_logs (tenant_id, user_id, action, entity_type) VALUES ($1, $2, $3, $4)',
-        [req.user.tenantId, req.user.userId, 'LOGOUT', 'user']
-    );
-
     res.status(200).json({ success: true, message: "Logged out successfully" });
 };

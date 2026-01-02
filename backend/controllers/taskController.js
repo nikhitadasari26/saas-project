@@ -148,8 +148,6 @@ exports.updateTask = async (req, res) => {
     }
 };
 
-const pool = require('../config/db');
-
 // GET all tasks for a specific project
 exports.getProjectTasks = async (req, res) => {
     const { projectId } = req.params;

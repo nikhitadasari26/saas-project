@@ -3,10 +3,10 @@ const path = require('path');
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'database',
-  database: process.env.DB_NAME || 'saas_db',
-  password: process.env.DB_PASSWORD || 'password123',
+  user: 'postgres',
+  host: 'localhost', // Ensure this is localhost, not "database"
+  database: 'saas_db',
+  password: 'postgres', // Change this!
   port: 5432,
 });
 

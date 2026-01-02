@@ -1,9 +1,10 @@
-const pool = require('../config/db');
+const pool = require('../init-db');
 
 exports.getTenantStats = async (req, res) => {
-    const { tenantId } = req.user;
+    // Ensure your auth middleware is actually attaching tenantId to req.user
+    const tenantId = req.user.tenantId; 
+    
     try {
-        // Run multiple counts in one go for efficiency
         const stats = await pool.query(`
             SELECT 
                 (SELECT COUNT(*) FROM projects WHERE tenant_id = $1) as project_count,
@@ -14,6 +15,7 @@ exports.getTenantStats = async (req, res) => {
 
         res.json({ success: true, data: stats.rows[0] });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ success: false, message: "Error fetching stats" });
     }
 };

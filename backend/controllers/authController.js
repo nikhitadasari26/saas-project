@@ -3,47 +3,35 @@ const jwt = require('jsonwebtoken');
 const { pool } = require('../init-db');
 
 // API 1: Register Tenant (Step 4.1)
+// FIND THIS FUNCTION IN authController.js
 exports.registerTenant = async (req, res) => {
-    // Destructure exactly what the frontend sends
     const { organizationName, subdomain, email, fullName, password } = req.body;
-    
     try {
-        // 1. Check if subdomain is taken
-        const existingTenant = await pool.query('SELECT id FROM tenants WHERE subdomain = $1', [subdomain]);
-        if (existingTenant.rows.length > 0) {
-            return res.status(400).json({ success: false, message: "Subdomain already taken" });
-        }
-
-        // 2. Create Tenant (Step 4.1)
         const tenantRes = await pool.query(
             'INSERT INTO tenants (name, subdomain) VALUES ($1, $2) RETURNING id',
             [organizationName, subdomain]
         );
         const tenantId = tenantRes.rows[0].id;
-
-        // 3. Create Admin User
         const hashedPassword = await bcrypt.hash(password, 10);
+
+        // FIXED INSERT QUERY
         await pool.query(
-            'INSERT INTO users (tenant_id, email, full_name, password_hash, role) VALUES ($1, $2, $3, $4, $5)',
-            [tenantId, email, fullName, hashedPassword, 'tenant_admin']
+            'INSERT INTO users (tenant_id, full_name, email, password, role) VALUES ($1, $2, $3, $4, $5)',
+            [tenantId, fullName, email, hashedPassword, 'admin']
         );
 
-        res.status(201).json({ success: true, message: "Tenant and Admin created successfully" });
+        res.status(201).json({ success: true, message: "Organization registered successfully" });
     } catch (err) {
-        // Log the exact DB error to your terminal so you can see it!
-        console.error("REGISTRATION DB ERROR:", err.message); 
-        res.status(500).json({ success: false, message: "Registration failed: " + err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
-
-// API 2: Login (Step 4.1)
 exports.login = async (req, res) => {
-    // Frontend sends 'tenantSubdomain'
     const { email, password, tenantSubdomain } = req.body;
 
     try {
+        // FIXED: Removed t.status because it isn't in your DB schema
         const userRes = await pool.query(
-            `SELECT u.*, t.status as tenant_status 
+            `SELECT u.*, t.name as tenant_name 
              FROM users u 
              JOIN tenants t ON u.tenant_id = t.id 
              WHERE LOWER(u.email) = LOWER($1) AND LOWER(t.subdomain) = LOWER($2)`,
@@ -56,26 +44,24 @@ exports.login = async (req, res) => {
 
         const user = userRes.rows[0];
         
-        // Verify Password
-        const isMatch = await bcrypt.compare(password, user.password_hash);
+        // Verify Password - Uses 'password' column from your init-db.js
+        const isMatch = await bcrypt.compare(password, user.password);
         
         if (!isMatch) {
             return res.status(401).json({ success: false, message: "Invalid credentials" });
         }
 
-        // Generate the JWT token (Step 4.1)
         const token = jwt.sign(
             { id: user.id, email: user.email, tenantId: user.tenant_id, role: user.role },
-            process.env.JWT_SECRET || 'fallback_secret',
+            process.env.JWT_SECRET || 'your_super_secret_key_123',
             { expiresIn: '24h' }
         );
 
-        // Sending data in the structure expected by the frontend
         res.json({
             success: true,
             data: {
                 token,
-                user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role }
+                user: { id: user.id, email: user.email, role: user.role }
             }
         });
 

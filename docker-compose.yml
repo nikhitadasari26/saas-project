@@ -4,13 +4,15 @@ services:
     container_name: saas_database
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres # Changed to match your requirement
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: saas_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    healthcheck: # Mandatory for evaluation
+    networks:
+      - saas-network
+    healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d saas_db"]
       interval: 5s
       timeout: 5s
@@ -20,29 +22,37 @@ services:
     build: ./backend
     container_name: saas_backend
     ports:
-      - "5000:5000" # Exposed to localhost:5000
+      - "5000:5000"
     environment:
       DB_HOST: database
       DB_USER: postgres
-      DB_PASSWORD: postgres # Aligned with database service
+      DB_PASSWORD: postgres
       DB_NAME: saas_db
       JWT_SECRET: your_super_secret_key_123
       PORT: 5000
+    networks:
+      - saas-network
     depends_on:
       database:
-        condition: service_healthy # Ensures DB is ready before backend starts
+        condition: service_healthy
 
   frontend:
     build: ./frontend
     container_name: saas_frontend
     ports:
-      - "3000:3000" # Exposed to localhost:3000
+      - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:5000/api # Points to the exposed backend
+      - REACT_APP_API_URL=http://localhost:5000/api
+    networks:
+      - saas-network
     stdin_open: true
     tty: true
     depends_on:
       - backend
+
+networks:
+  saas-network:
+    driver: bridge
 
 volumes:
   postgres_data:

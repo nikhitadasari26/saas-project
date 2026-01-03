@@ -1,56 +1,50 @@
 const express = require('express');
 const cors = require('cors');
 const { pool, initializeDatabase } = require('./init-db');
-const path = require('path');
-const fs = require('fs');
 
 const app = express();
+
 const authRoutes = require('./routes/authRoutes');
 const tenantRoutes = require('./routes/tenantRoutes');
 const projectRoutes = require('./routes/projectRoutes');
-const userRoutes = require('./routes/userRoutes');
-const taskRoutes = require('./routes/taskRoutes');
-const statsRoutes = require('./routes/statsRoutes');
 
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'], 
+  origin: ['http://localhost:3000', 'http://localhost:3001'], // Allow both ports
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json());
+
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/projects', projectRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/tasks', taskRoutes);
-app.use('/api/stats', statsRoutes)
 
-// Mandatory Health Check
-// Health Check Endpoint (Step 5.2.1)
+// Mandatory Health Check for Docker Evaluation
 app.get('/api/health', async (req, res) => {
   try {
-    const dbStatus = await pool.query('SELECT 1'); // Check DB connection
-    res.status(200).json({ 
-      status: "ok", 
-      database: "connected" 
-    });
+    await pool.query('SELECT 1');
+    res.status(200).json({ status: "ok", database: "connected" });
   } catch (err) {
-    res.status(503).json({ 
-      status: "error", 
-      database: "disconnected", 
-      message: err.message 
-    });
+    res.status(503).json({ status: "error", message: err.message });
   }
 });
+
 const startServer = async () => {
-    // RUN MIGRATIONS AUTOMATICALLY
-    await initializeDatabase();
+  try {
+    console.log("Starting database initialization...");
+    await initializeDatabase(); // This creates your tables
     
     const PORT = 5000;
     app.listen(PORT, () => {
-        console.log(`Backend running on port ${PORT}`);
+      console.log(`✅ Backend listening on port ${PORT}`);
     });
+  } catch (error) {
+    console.error("❌ Critical Startup Error:", error);
+    process.exit(1); // Force exit so Docker knows it failed
+  }
 };
 
 startServer();

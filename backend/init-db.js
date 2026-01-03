@@ -1,57 +1,64 @@
-const fs = require('fs');
-const path = require('path');
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost', // Ensure this is localhost, not "database"
-  database: 'saas_db',
-  password: 'postgres', // Change this!
+  host: process.env.DB_HOST || 'database',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'postgres',
+  database: process.env.DB_NAME || 'saas_db',
   port: 5432,
 });
 
 const initializeDatabase = async () => {
-    let retries = 5;
-    while (retries > 0) {
-        try {
-            const client = await pool.connect();
-            console.log("✅ Database Connected - Starting Migrations");
+  let retries = 5;
+  while (retries > 0) {
+    try {
+      await pool.query('SELECT 1');
+      console.log('✅ Database connected');
 
-            // 1. Create the migrations table first to track progress
-            await client.query(`
-                CREATE TABLE IF NOT EXISTS migrations (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(255) UNIQUE NOT NULL,
-                    executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            `);
+      // STEP 1: Create Tenants FIRST
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS tenants (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          subdomain TEXT UNIQUE NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
 
-            // 2. Run your migration files
-            const migrationsDir = path.join(__dirname, 'migrations');
-            const files = fs.readdirSync(migrationsDir).sort();
+      // STEP 2: Create Users
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+          full_name TEXT,
+          email TEXT UNIQUE NOT NULL,
+          password TEXT NOT NULL,
+          role TEXT DEFAULT 'user',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
 
-            for (const file of files) {
-                const migrationName = file;
-                const check = await client.query('SELECT * FROM migrations WHERE name = $1', [migrationName]);
-                
-                if (check.rows.length === 0) {
-                    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-                    await client.query(sql);
-                    await client.query('INSERT INTO migrations (name) VALUES ($1)', [migrationName]);
-                    console.log(`Successfully Executed: ${file}`);
-                }
-            }
+      // STEP 3: Create Projects
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS projects (
+          id SERIAL PRIMARY KEY,
+          tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          description TEXT,
+          status TEXT DEFAULT 'active',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
 
-            client.release();
-            console.log("✅ All Migrations Completed");
-            return; // Exit the function successfully
-        } catch (err) {
-            retries -= 1;
-            console.log(`❌ Connection failed (${err.message}). Retries left: ${retries}`);
-            if (retries === 0) throw err;
-            await new Promise(res => setTimeout(res, 3000)); // Wait 3 seconds
-        }
+      console.log('✅ All tables created successfully');
+      return;
+    } catch (err) {
+      console.log(`❌ Setup failed: ${err.message}. Retries left: ${retries}`);
+      retries -= 1;
+      await new Promise(res => setTimeout(res, 5000));
     }
+  }
+  throw new Error('Could not connect to the database');
 };
 
 module.exports = { pool, initializeDatabase };

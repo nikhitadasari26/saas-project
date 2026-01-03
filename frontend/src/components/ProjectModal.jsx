@@ -4,18 +4,21 @@ import api from '../services/api';
 const ProjectModal = ({ isOpen, onClose, onProjectCreated }) => {
   const [formData, setFormData] = useState({ name: '', description: '', status: 'active' });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await api.post('/projects', formData);
-      if (res.data.success) {
-        onProjectCreated();
-        onClose();
-      }
-    } catch (err) {
-      console.error("Error creating project:", err.response?.status);
-    }
-  };
+  const handleCreate = async (e) => {
+  e.preventDefault();
+
+  try {
+    await api.post('/projects', {
+      name: formData.name,
+      description: formData.description,
+    });
+
+    onProjectCreated(); // refresh project list
+    onClose();          // close modal
+  } catch (err) {
+    alert(err.response?.data?.message || 'Failed to create project');
+  }
+};
 
   if (!isOpen) return null;
 
@@ -24,7 +27,7 @@ const ProjectModal = ({ isOpen, onClose, onProjectCreated }) => {
       <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl border border-gray-100">
         <h2 className="text-2xl font-bold text-gray-800 mb-8 border-b pb-4">Create New Project</h2>
         
-        <form onSubmit={handleSubmit} className="space-y-6"> {/* Adds vertical spacing between inputs */}
+        <form onSubmit={handleCreate} className="space-y-6"> {/* Adds vertical spacing between inputs */}
           <div className="space-y-2">
             <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide">Project Name</label>
             <input 

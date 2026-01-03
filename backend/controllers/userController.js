@@ -4,7 +4,8 @@ const { pool } = require('../init-db');
 // API 8: Add User to Tenant
 exports.addUser = async (req, res) => {
     const { email, password, fullName, role } = req.body;
-    const tenantId = req.user.tenantId;
+   const tenantId = req.user.tenantId;
+
 
     try {
         // 1. Subscription limit check

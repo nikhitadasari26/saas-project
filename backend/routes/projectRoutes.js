@@ -1,14 +1,22 @@
 const express = require('express');
 const router = express.Router();
-// 1. Ensure the filename matches (authMiddleware.js)
-// 2. We'll use 'auth' as the variable name here to match your router lines below
-const auth = require('../middleware/authMiddleware'); 
-const projectController = require('../controllers/projectController');
 
-// These will now work because 'auth' is defined above
+const projectController = require('../controllers/projectController');
+const auth = require('../middleware/authMiddleware'); // ✅ THIS WAS MISSING
+
+// Create project
 router.post('/', auth, projectController.createProject);
+
+// List projects
 router.get('/', auth, projectController.listProjects);
+
+// ✅ Get single project (FIXES 404)
+router.get('/:projectId', auth, projectController.getProjectById);
+
+// Update project
 router.put('/:projectId', auth, projectController.updateProject);
+
+// Delete project
 router.delete('/:projectId', auth, projectController.deleteProject);
 
 module.exports = router;

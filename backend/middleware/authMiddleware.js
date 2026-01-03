@@ -1,21 +1,29 @@
 const jwt = require('jsonwebtoken');
 
-const authenticate = (req, res, next) => {
-    // Get the token from the request header
-    const token = req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
-        return res.status(401).json({ success: false, message: "Access denied. No token provided." });
-    }
+module.exports = (req, res, next) => {
+  const authHeader = req.headers.authorization;
 
-    try {
-        // Verify the token using your secret key
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret');
-        req.user = decoded; // This adds {userId, tenantId, role} to the request
-        next();
-    } catch (ex) {
-        res.status(401).json({ success: false, message: "Invalid token." });
-    }
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'Invalid token' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || 'your_super_secret_key_123'
+    );
+
+    req.user = {
+      id: decoded.id,
+      tenantId: decoded.tenantId,
+      role: decoded.role,
+    };
+
+    next();
+  } catch (err) {
+    console.error('JWT VERIFY FAILED:', err.message);
+    return res.status(401).json({ message: 'Invalid token' });
+  }
 };
-
-module.exports = authenticate;

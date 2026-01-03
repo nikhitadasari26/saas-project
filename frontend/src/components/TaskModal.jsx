@@ -1,81 +1,72 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
-import Layout from '../components/Layout';
-import TaskModal from '../components/TaskModal';
+import React, { useState } from 'react';
 import api from '../services/api';
 
-const ProjectDetails = () => {
-  const { projectId } = useParams();
-  const [project, setProject] = useState(null);
-  const [tasks, setTasks] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+const TaskModal = ({ isOpen, onClose, projectId, onTaskCreated }) => {
+  const [formData, setFormData] = useState({
+    title: '',
+    priority: 'medium',
+  });
 
-  // Define fetchData once with useCallback so it can be used in useEffect and the Modal
-  const fetchData = useCallback(async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
     try {
-      const projRes = await api.get(`/projects/${projectId}`);
-      const taskRes = await api.get(`/tasks/project/${projectId}`);
-      setProject(projRes.data.data);
-      setTasks(taskRes.data.data);
-    } catch (err) { 
-      console.error("Error fetching data:", err); 
-    }
-  }, [projectId]);
+      await api.post(`/projects/${projectId}/tasks`, {
+        title: formData.title,
+        priority: formData.priority,
+      });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+      onTaskCreated(); // refresh task list
+      onClose();       // close modal
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Failed to create task');
+    }
+  };
+
+  if (!isOpen) return null;
 
   return (
-    <Layout>
-      {project && (
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">{project.name}</h1>
-          <p className="text-gray-600 mt-2">{project.description}</p>
-        </div>
-      )}
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md">
+        <h2 className="text-xl font-bold mb-6">Add Task to Project</h2>
 
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-800">Project Tasks</h2>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            required
+            placeholder="Task name"
+            className="w-full border p-3 rounded"
+            onChange={(e) =>
+              setFormData({ ...formData, title: e.target.value })
+            }
+          />
+
+          <select
+            className="w-full border p-3 rounded"
+            onChange={(e) =>
+              setFormData({ ...formData, priority: e.target.value })
+            }
           >
-            + Add Task
-          </button>
-        </div>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
 
-        <div className="grid gap-4">
-          {tasks.map(task => (
-            <div key={task.id} className="p-4 border border-gray-100 rounded-lg flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition">
-              <div>
-                <h4 className="font-semibold text-gray-900">{task.title}</h4>
-                <div className="flex space-x-2 mt-1">
-                  <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded">Priority: {task.priority}</span>
-                </div>
-              </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                task.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
-              }`}>
-                {task.status}
-              </span>
-            </div>
-          ))}
-          {tasks.length === 0 && (
-            <div className="text-center py-8 text-gray-500">No tasks assigned to this project yet.</div>
-          )}
-        </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <button type="button" onClick={onClose} className="px-4 py-2">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="bg-green-600 text-white px-5 py-2 rounded"
+            >
+              Create Task
+            </button>
+          </div>
+        </form>
       </div>
-
-      <TaskModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        projectId={projectId}
-        onTaskCreated={fetchData} // Re-fetches the list after a new task is added
-      />
-    </Layout>
+    </div>
   );
 };
 
-export default ProjectDetails;
+export default TaskModal;

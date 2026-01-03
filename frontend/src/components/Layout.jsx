@@ -1,30 +1,12 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
+import Sidebar from './Sidebar';
 
-const Layout = ({ children }) => {
-  const location = useLocation();
-  const user = JSON.parse(localStorage.getItem('user')) || {};
-
+const Layout = () => {
   return (
-    <div className="layout-container">
-      <aside className="sidebar">
-        <h2>SaaS Portal</h2>
-        <nav>
-          <Link to="/dashboard" className={`nav-link ${location.pathname === '/dashboard' ? 'active' : ''}`}>Dashboard</Link>
-          <Link to="/projects" className={`nav-link ${location.pathname === '/projects' ? 'active' : ''}`}>Projects</Link>
-          <Link to="/users" className={`nav-link ${location.pathname === '/users' ? 'active' : ''}`}>Team Management</Link>
-        </nav>
-        
-        <div style={{marginTop: 'auto', paddingTop: '2rem', borderTop: '1px solid #334155'}}>
-          <p style={{fontSize: '0.8rem', color: '#94a3b8'}}>{user.email}</p>
-          <button onClick={() => { localStorage.clear(); window.location.href='/login'; }} className="nav-link" style={{width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer'}}>
-            Logout
-          </button>
-        </div>
-      </aside>
-
-      <main className="main-content">
-        {children}
+    <div className="flex min-h-screen bg-slate-100">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto">
+        <Outlet />
       </main>
     </div>
   );

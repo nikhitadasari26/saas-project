@@ -1,63 +1,64 @@
 const express = require('express');
 const cors = require('cors');
-const { pool, initializeDatabase } = require('./init-db');
+const { pool } = require('./init-db');
+const { execSync } = require('child_process');
 
 const authMiddleware = require('./middleware/authMiddleware');
 
 const authRoutes = require('./routes/authRoutes');
 const tenantRoutes = require('./routes/tenantRoutes');
 const projectRoutes = require('./routes/projectRoutes');
-const userRoutes = require('./routes/userRoutes');
 const taskRoutes = require('./routes/taskRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 
-/* ================= MIDDLEWARE ================= */
-
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  origin: ['http://localhost:3000'],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
 
-/* ================= ROUTES ================= */
-
-// 🔓 Public (NO token)
+/* PUBLIC */
 app.use('/api/auth', authRoutes);
 
-// 🔐 Protected (token REQUIRED)
-app.use('/api/tenants', authMiddleware, tenantRoutes);
-app.use('/api/tenants', authMiddleware, userRoutes);   // ✅ /api/tenants/:tenantId/users
-
+/* PROTECTED */
 app.use('/api/projects', authMiddleware, projectRoutes);
-app.use('/api/projects', authMiddleware, taskRoutes);  // ✅ /api/projects/:projectId/tasks
+app.use('/api', authMiddleware, taskRoutes);
+app.use('/api/tenants', authMiddleware, tenantRoutes);
+app.use('/api/users', authMiddleware, userRoutes);
 
-// Health check (public)
+/* HEALTH */
 app.get('/api/health', async (req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.status(200).json({ status: 'ok', database: 'connected' });
-  } catch (err) {
-    res.status(503).json({ status: 'error', message: err.message });
-  }
+  await pool.query('SELECT 1');
+  res.json({ status: 'ok' });
 });
-
-/* ================= START SERVER ================= */
 
 const startServer = async () => {
   try {
-    console.log('Starting database initialization...');
-    await initializeDatabase();
+    console.log('⏳ Running migrations...');
+    execSync('npm run migrate', { stdio: 'inherit' });
 
-    const PORT = 5000;
-    app.listen(PORT, () => {
-      console.log(`✅ Backend listening on port ${PORT}`);
+    // ✅ Seed ONLY if users table is empty
+    const { rows } = await pool.query('SELECT COUNT(*) FROM users');
+    if (Number(rows[0].count) === 0) {
+      console.log('🌱 Running seed...');
+      execSync(
+        `psql postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME} -f seed_data.sql`,
+        { stdio: 'inherit' }
+      );
+    } else {
+      console.log('✅ Seed skipped (data already exists)');
+    }
+
+    app.listen(5000, () => {
+      console.log('✅ Backend running on port 5000');
     });
-  } catch (error) {
-    console.error('❌ Critical Startup Error:', error);
+
+  } catch (err) {
+    console.error('❌ Startup failed:', err);
     process.exit(1);
   }
 };

@@ -2,26 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Light Theme (Default) */
 :root {
-  --primary-bg: #f8fafc;
-  --sidebar-bg: #0f172a; /* Exact dark slate from your friend's repo */
+  --primary-bg: #f1f5f9; /* Lighter slate for modern feel */
+  --secondary-bg: #ffffff;
+  --primary-text: #0f172a;
+  --secondary-text: #64748b;
+  --border-color: #e2e8f0;
+}
+
+/* Dark Theme */
+.dark {
+  --primary-bg: #0f172a; /* Midnight Zinc */
+  --secondary-bg: #1e293b; /* Slightly lighter slate */
+  --primary-text: #e2e8f0;
+  --secondary-text: #94a3b8;
+  --border-color: #334155;
 }
 
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--primary-bg); /* Professional light slate */
+  background-color: var(--primary-bg);
+  color: var(--primary-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Global smooth transitions for the high-end SaaS feel */
+/* Glassmorphism utility */
+.glass-effect {
+    background-color: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Global smooth transitions */
 * {
   transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
   transition-duration: 200ms;
 }
 
-/* Modern Minimalist Scrollbar */
+/* Modern Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -29,7 +50,7 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #475569; /* Darker scrollbar for both themes */
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {

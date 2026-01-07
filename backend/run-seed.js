@@ -7,7 +7,7 @@ async function seed() {
     const tenantCheck = await pool.query('SELECT COUNT(*) FROM tenants');
     if (parseInt(tenantCheck.rows[0].count) > 0) {
       console.log('ℹ️ Seed already exists. Skipping seed.');
-      process.exit(0);
+      return;
     }
 
     console.log('🌱 Running seed data...');
@@ -50,12 +50,10 @@ async function seed() {
     );
 
     console.log('✅ Seed data inserted successfully');
-    process.exit(0);
-
   } catch (err) {
     console.error('❌ Seed failed:', err.message);
-    process.exit(1);
+    throw err; // Re-throw the error to be caught by the caller
   }
 }
 
-seed();
+module.exports = { seed };

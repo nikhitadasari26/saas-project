@@ -1,44 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../init-db');
+const {
+    getTenantDetails,
+    updateTenant,
+    listAllTenants,
+    requestUpgrade
+} = require('../controllers/tenantController');
 
-// GET users for a tenant
-router.get('/:tenantId/users', async (req, res) => {
-  const { tenantId } = req.params;
+// Note: All routes in this file are protected by authMiddleware as defined in server.js
 
-  // extra safety
-  if (tenantId !== req.user.tenantId) {
-    return res.status(403).json({ message: 'Access denied' });
-  }
+// GET /api/tenants - List all tenants (Super Admin)
+// This should be the root route for /api/tenants
+router.get('/', listAllTenants);
 
-  const result = await pool.query(
-    'SELECT id, full_name, email, role FROM users WHERE tenant_id = $1',
-    [tenantId]
-  );
+// POST /api/tenants/request-upgrade - Request a plan upgrade (Tenant Admin)
+router.post('/request-upgrade', requestUpgrade);
 
-  res.json({ success: true, data: result.rows });
-});
+// GET /api/tenants/:tenantId - Get details for a specific tenant
+router.get('/:tenantId', getTenantDetails);
 
-// CREATE user for a tenant
-router.post('/:tenantId/users', async (req, res) => {
-  const { tenantId } = req.params;
-  const { fullName, email, password, role } = req.body;
-
-  if (tenantId !== req.user.tenantId) {
-    return res.status(403).json({ message: 'Access denied' });
-  }
-
-  const bcrypt = require('bcrypt');
-  const hashed = await bcrypt.hash(password, 10);
-
-  const result = await pool.query(
-    `INSERT INTO users (tenant_id, full_name, email, password_hash, role)
-     VALUES ($1,$2,$3,$4,$5)
-     RETURNING id, full_name, email, role`,
-    [tenantId, fullName, email, hashed, role || 'user']
-  );
-
-  res.status(201).json({ success: true, data: result.rows[0] });
-});
+// PUT /api/tenants/:tenantId - Update a tenant
+router.put('/:tenantId', updateTenant);
 
 module.exports = router;

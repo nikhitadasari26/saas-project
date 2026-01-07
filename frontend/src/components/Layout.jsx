@@ -3,7 +3,7 @@ import Sidebar from './Sidebar';
 
 const Layout = () => {
   return (
-    <div className="flex min-h-screen bg-slate-100">
+    <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
       <main className="flex-1 overflow-y-auto">
         <Outlet />

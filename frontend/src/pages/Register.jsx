@@ -18,20 +18,19 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     if (formData.password !== formData.confirmPassword) {
       return setError("Passwords do not match");
     }
 
     setLoading(true);
     try {
-      // Mapping frontend state to EXACT backend expected keys
       const res = await api.post('/auth/register-tenant', {
-        organizationName: formData.organizationName, // Matches backend
-        subdomain: formData.subdomain,              // Matches backend
-        email: formData.email,                      // WAS adminEmail, NOW email
-        fullName: formData.fullName,                // WAS adminName, NOW fullName
-        password: formData.password                 // Matches backend
+        organizationName: formData.organizationName,
+        subdomain: formData.subdomain,
+        email: formData.email,
+        fullName: formData.fullName,
+        password: formData.password
       });
 
       if (res.data.success) {
@@ -39,95 +38,100 @@ const Register = () => {
         navigate('/login');
       }
     } catch (err) {
-      // This will now show the actual message like "Subdomain already taken"
-      setError(err.response?.data?.message || "Registration failed. Check backend terminal.");
+      setError(err.response?.data?.message || "Registration failed.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-lg border border-gray-100">
-        <h2 className="text-3xl font-bold text-gray-800 text-center mb-2">Register Organization</h2>
-        <p className="text-gray-500 text-center mb-8">Start your multi-tenant journey today</p>
-        
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200 border border-slate-100 p-12 w-full max-w-[600px]">
+        <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center text-white text-3xl mx-auto mb-8 shadow-xl shadow-blue-200">
+          🚀
+        </div>
+
+        <h2 className="text-3xl font-black text-slate-800 text-center mb-2 tracking-tight">Start Your Journey</h2>
+        <p className="text-slate-400 font-bold text-sm text-center mb-10">Create your organization workspace</p>
+
         {error && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
-            <p className="text-red-700 text-sm">{error}</p>
+          <div className="bg-red-50 text-red-600 p-4 mb-8 rounded-2xl font-bold text-sm flex items-center justify-center border border-red-100">
+            ⚠️ {error}
           </div>
         )}
-        
-        <form onSubmit={handleSubmit} className="space-y-5"> {/* Professional vertical spacing */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Organization</label>
-              <input 
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 mb-2 block">Organization</label>
+              <input
                 type="text" placeholder="TechCorp" required
-                className="w-full border-2 border-gray-100 p-3 rounded-lg focus:border-blue-500 outline-none transition-all"
-                onChange={(e) => setFormData({...formData, organizationName: e.target.value})}
+                className="w-full bg-slate-50 border-0 p-4 rounded-2xl font-bold text-slate-700 focus:ring-4 focus:ring-blue-100 transition-all outline-none"
+                onChange={(e) => setFormData({ ...formData, organizationName: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Subdomain</label>
-              <input 
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 mb-2 block">Subdomain</label>
+              <input
                 type="text" placeholder="techcorp" required
-                className="w-full border-2 border-gray-100 p-3 rounded-lg focus:border-blue-500 outline-none transition-all"
-                onChange={(e) => setFormData({...formData, subdomain: e.target.value.toLowerCase()})}
+                className="w-full bg-slate-50 border-0 p-4 rounded-2xl font-bold text-slate-700 focus:ring-4 focus:ring-blue-100 transition-all outline-none"
+                onChange={(e) => setFormData({ ...formData, subdomain: e.target.value.toLowerCase() })}
               />
             </div>
           </div>
 
-          <div className="border-t pt-5 mt-5">
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Admin Full Name</label>
-            <input 
-              type="text" placeholder="John Doe" required
-              className="w-full border-2 border-gray-100 p-3 rounded-lg focus:border-blue-500 outline-none transition-all"
-              onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-            />
+          <div className="border-t border-slate-100 pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 mb-2 block">Admin Name</label>
+                <input
+                  type="text" placeholder="John Doe" required
+                  className="w-full bg-slate-50 border-0 p-4 rounded-2xl font-bold text-slate-700 focus:ring-4 focus:ring-blue-100 transition-all outline-none"
+                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 mb-2 block">Admin Email</label>
+                <input
+                  type="email" placeholder="admin@company.com" required
+                  className="w-full bg-slate-50 border-0 p-4 rounded-2xl font-bold text-slate-700 focus:ring-4 focus:ring-blue-100 transition-all outline-none"
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                />
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Admin Email</label>
-            <input 
-              type="email" placeholder="admin@techcorp.com" required
-              className="w-full border-2 border-gray-100 p-3 rounded-lg focus:border-blue-500 outline-none transition-all"
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Password</label>
-              <input 
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 mb-2 block">Password</label>
+              <input
                 type="password" placeholder="••••••••" required
-                className="w-full border-2 border-gray-100 p-3 rounded-lg focus:border-blue-500 outline-none transition-all"
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
+                className="w-full bg-slate-50 border-0 p-4 rounded-2xl font-bold text-slate-700 focus:ring-4 focus:ring-blue-100 transition-all outline-none"
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Confirm</label>
-              <input 
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 mb-2 block">Confirm</label>
+              <input
                 type="password" placeholder="••••••••" required
-                className="w-full border-2 border-gray-100 p-3 rounded-lg focus:border-blue-500 outline-none transition-all"
-                onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                className="w-full bg-slate-50 border-0 p-4 rounded-2xl font-bold text-slate-700 focus:ring-4 focus:ring-blue-100 transition-all outline-none"
+                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
               />
             </div>
           </div>
-          
-          <button 
-            type="submit" 
+
+          <button
+            type="submit"
             disabled={loading}
-            className={`w-full py-3 rounded-lg font-bold text-white transition-all mt-4 ${
-              loading ? 'bg-blue-300' : 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100'
-            }`}
+            className={`w-full py-5 rounded-2xl font-black text-lg text-white transition-all shadow-xl mt-6 ${loading ? 'bg-blue-300' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200 hover:shadow-blue-300 hover:-translate-y-1'
+              }`}
           >
-            {loading ? 'Processing...' : 'Complete Registration'}
+            {loading ? 'Creating Account...' : '➜ Create Organization'}
           </button>
         </form>
 
-        <p className="mt-8 text-center text-gray-600 text-sm">
-          Already have an account? <Link to="/login" className="text-blue-600 font-bold hover:underline">Back to Login</Link>
+        <p className="mt-10 text-center text-slate-400 font-bold text-sm">
+          Already have an account? <Link to="/login" className="text-blue-600 hover:underline">Back to Login</Link>
         </p>
       </div>
     </div>

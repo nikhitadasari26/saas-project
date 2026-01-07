@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+const getApiBaseUrl = () => {
+  const hostname = window.location.hostname;
+  return `http://${hostname}:5000/api`;
+};
+
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL,
+  baseURL: getApiBaseUrl(),
 });
 
 // ✅ ALWAYS ATTACH TOKEN

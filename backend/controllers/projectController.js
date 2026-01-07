@@ -1,58 +1,43 @@
-const { pool } = require('../init-db');
+const { Project, Tenant, User, Task, sequelize } = require('../models');
 
 /**
  * API 12: Create Project
  */
 exports.createProject = async (req, res) => {
-  const tenantId = req.user.tenantId;
-  const userId = req.user.id;
-  const role = req.user.role;
-
-  // ✅ FIX: extract body values
+  const { tenantId, id: userId, role } = req.user;
   const { name, description, status } = req.body;
 
-  try {
-    // 1. Subscription Limit Check
-    const tenantRes = await pool.query(
-      'SELECT max_projects FROM tenants WHERE id = $1',
-      [tenantId]
-    );
+  // RBAC: Only tenant admins can create projects
+  if (role !== 'tenant_admin') {
+    return res.status(403).json({ success: false, message: 'Only tenant admins can create projects.' });
+  }
 
-    if (tenantRes.rows.length === 0) {
+  try {
+    const tenant = await Tenant.findByPk(tenantId);
+    if (!tenant) {
       return res.status(404).json({ success: false, message: 'Tenant not found' });
     }
 
-    const projectCountRes = await pool.query(
-      'SELECT COUNT(*) FROM projects WHERE tenant_id = $1',
-      [tenantId]
-    );
+    const projectCount = await Project.count({ where: { tenantId } });
 
-    const currentCount = parseInt(projectCountRes.rows[0].count);
-    const maxAllowed = tenantRes.rows[0].max_projects;
-
-    if (currentCount >= maxAllowed) {
+    if (projectCount >= tenant.max_projects) {
       return res.status(403).json({
         success: false,
-        message: `Project limit reached. Your plan allows only ${maxAllowed} projects.`,
+        message: `Project limit reached. Your plan allows only ${tenant.max_projects} projects.`,
       });
     }
 
-    // 2. Insert Project
-    const newProject = await pool.query(
-      `INSERT INTO projects (tenant_id, name, description, status, created_by)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [tenantId, name, description, status || 'active', userId]
-    );
+    const newProject = await Project.create({
+      tenantId,
+      name,
+      description,
+      status: status || 'active',
+      createdBy: userId,
+    });
 
-    // 3. Audit Log
-    await pool.query(
-      `INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [tenantId, userId, 'CREATE_PROJECT', 'project', newProject.rows[0].id]
-    );
+    // TODO: Add audit log here when the model is created.
 
-    res.status(201).json({ success: true, data: newProject.rows[0] });
+    res.status(201).json({ success: true, data: newProject });
   } catch (err) {
     console.error('CREATE PROJECT ERROR:', err);
     res.status(500).json({ success: false, message: 'Error creating project' });
@@ -63,24 +48,28 @@ exports.createProject = async (req, res) => {
  * API 13: List Projects
  */
 exports.listProjects = async (req, res) => {
-  const tenantId = req.user.tenantId;
+  const { tenantId } = req.user;
 
   try {
-    const query = `
-      SELECT p.*, u.full_name AS "creatorName",
-        (SELECT COUNT(*) FROM tasks WHERE project_id = p.id) AS "taskCount",
-        (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status = 'completed') AS "completedTaskCount"
-      FROM projects p
-      LEFT JOIN users u ON p.created_by = u.id
-      WHERE p.tenant_id = $1
-      ORDER BY p.created_at DESC
-    `;
-
-    const result = await pool.query(query, [tenantId]);
+    const { rows: projects, count: total } = await Project.findAndCountAll({
+      where: { tenantId },
+      include: [{
+        model: User,
+        as: 'creator',
+        attributes: ['full_name']
+      }],
+      attributes: {
+        include: [
+          [sequelize.literal('(SELECT COUNT(*) FROM "tasks" WHERE "tasks"."project_id" = "Project"."id")'), 'taskCount'],
+          [sequelize.literal('(SELECT COUNT(*) FROM "tasks" WHERE "tasks"."project_id" = "Project"."id" AND "tasks"."status" = \'completed\')'), 'completedTaskCount']
+        ]
+      },
+      order: [['createdAt', 'DESC']]
+    });
 
     res.status(200).json({
       success: true,
-      data: { projects: result.rows, total: result.rowCount },
+      data: { projects, total },
     });
   } catch (err) {
     console.error('LIST PROJECTS ERROR:', err);
@@ -94,40 +83,25 @@ exports.listProjects = async (req, res) => {
 exports.updateProject = async (req, res) => {
   const { projectId } = req.params;
   const { name, description, status } = req.body;
-
-  // ✅ FIXED
-  const tenantId = req.user.tenantId;
-  const userId = req.user.id;
-  const role = req.user.role;
+  const { tenantId, id: userId, role } = req.user;
 
   try {
-    const projectCheck = await pool.query(
-      'SELECT created_by FROM projects WHERE id = $1 AND tenant_id = $2',
-      [projectId, tenantId]
-    );
+    const project = await Project.findOne({ where: { id: projectId, tenantId } });
 
-    if (projectCheck.rows.length === 0) {
+    if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    if (role !== 'tenant_admin' && projectCheck.rows[0].created_by !== userId) {
+    if (role !== 'tenant_admin' && project.createdBy !== userId) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
-    const result = await pool.query(
-      `UPDATE projects
-       SET name = COALESCE($1, name),
-           description = COALESCE($2, description),
-           status = COALESCE($3, status)
-       WHERE id = $4 AND tenant_id = $5
-       RETURNING *`,
-      [name, description, status, projectId, tenantId]
-    );
+    const updatedProject = await project.update({ name, description, status });
 
     res.status(200).json({
       success: true,
       message: 'Project updated successfully',
-      data: result.rows[0],
+      data: updatedProject,
     });
   } catch (err) {
     console.error('UPDATE PROJECT ERROR:', err);
@@ -140,36 +114,22 @@ exports.updateProject = async (req, res) => {
  */
 exports.deleteProject = async (req, res) => {
   const { projectId } = req.params;
-
-  // ✅ FIXED
-  const tenantId = req.user.tenantId;
-  const userId = req.user.id;
-  const role = req.user.role;
+  const { tenantId, id: userId, role } = req.user;
 
   try {
-    const projectCheck = await pool.query(
-      'SELECT created_by FROM projects WHERE id = $1 AND tenant_id = $2',
-      [projectId, tenantId]
-    );
+    const project = await Project.findOne({ where: { id: projectId, tenantId } });
 
-    if (projectCheck.rows.length === 0) {
+    if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    if (role !== 'tenant_admin' && projectCheck.rows[0].created_by !== userId) {
+    if (role !== 'tenant_admin' && project.createdBy !== userId) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
-    await pool.query(
-      'DELETE FROM projects WHERE id = $1 AND tenant_id = $2',
-      [projectId, tenantId]
-    );
+    await project.destroy();
 
-    await pool.query(
-      `INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [tenantId, userId, 'DELETE_PROJECT', 'project', projectId]
-    );
+    // TODO: Add audit log here when the model is created.
 
     res.status(200).json({ success: true, message: 'Project deleted successfully' });
   } catch (err) {
@@ -185,12 +145,9 @@ exports.getProjectById = async (req, res) => {
   const { tenantId } = req.user;
 
   try {
-    const result = await pool.query(
-      `SELECT * FROM projects WHERE id = $1 AND tenant_id = $2`,
-      [projectId, tenantId]
-    );
+    const project = await Project.findOne({ where: { id: projectId, tenantId } });
 
-    if (result.rows.length === 0) {
+    if (!project) {
       return res.status(404).json({
         success: false,
         message: 'Project not found'
@@ -199,7 +156,7 @@ exports.getProjectById = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: result.rows[0]
+      data: project
     });
   } catch (err) {
     console.error(err);

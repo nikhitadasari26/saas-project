@@ -3,74 +3,127 @@ const bcrypt = require('bcrypt');
 
 async function seed() {
   try {
-    // 🔍 Check if tenants already exist
-    const tenantCheck = await pool.query('SELECT COUNT(*) FROM tenants');
-    const tenantCount = parseInt(tenantCheck.rows[0].count);
+    console.log('🌱 Starting database seeding...');
 
-    if (tenantCount === 0) {
-      console.log('🌱 Running seed data...');
+    // --- 1. SUPER ADMIN (System Level) ---
+    const superAdminEmail = 'superadmin@system.com';
+    const superAdminPass = await bcrypt.hash('Admin@123', 10);
 
-      // 1️⃣ Create Tenant
-      const tenantRes = await pool.query(
-        `INSERT INTO tenants (name, subdomain)
-         VALUES ('Demo Organization', 'demo')
-         RETURNING id`
-      );
-
-      const tenantId = tenantRes.rows[0].id;
-
-      // 2️⃣ Hash password
-      const passwordHash = await bcrypt.hash('Demo@123', 10);
-
-      // 3️⃣ Create Admin User
-      const userRes = await pool.query(
-        `INSERT INTO users (tenant_id, email, password_hash, full_name, role)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id`,
-        [tenantId, 'admin@demo.com', passwordHash, 'Demo Admin', 'tenant_admin']
-      );
-
-      const userId = userRes.rows[0].id;
-
-      // 4️⃣ Create Project
-      const projectRes = await pool.query(
-        `INSERT INTO projects (tenant_id, name, description, created_by)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id`,
-        [tenantId, 'Demo Project', 'Seeded demo project', userId]
-      );
-
-      // 5️⃣ Create Task
-      await pool.query(
-        `INSERT INTO tasks (tenant_id, project_id, title, priority)
-         VALUES ($1, $2, $3, $4)`,
-        [tenantId, projectRes.rows[0].id, 'Demo Task', 'high']
-      );
-
-      console.log('✅ Tenant seed data inserted successfully');
-    } else {
-      console.log('ℹ️ Tenant seed already exists. Skipping tenant seed.');
-    }
-
-    // 6️⃣ Create Super Admin (ALWAYS CHECK)
-    const superAdminCheck = await pool.query("SELECT * FROM users WHERE role = 'super_admin'");
-    if (superAdminCheck.rows.length === 0) {
-      console.log('⚡ Creating Super Admin...');
-      const superAdminPass = await bcrypt.hash('Admin@123', 10);
+    // Check if exists
+    const superCheck = await pool.query("SELECT id FROM users WHERE email = $1", [superAdminEmail]);
+    if (superCheck.rows.length === 0) {
       await pool.query(
         `INSERT INTO users (tenant_id, email, password_hash, full_name, role)
-         VALUES (NULL, $1, $2, $3, $4)`,
-        ['superadmin@system.com', superAdminPass, 'System Super Admin', 'super_admin']
+         VALUES (NULL, $1, $2, $3, 'super_admin')`,
+        [superAdminEmail, superAdminPass, 'System Super Admin']
       );
       console.log('✅ Super Admin created');
     } else {
-      console.log('ℹ️ Super Admin already exists');
+      // Update password just in case
+      await pool.query("UPDATE users SET password_hash = $1 WHERE email = $2", [superAdminPass, superAdminEmail]);
+      console.log('ℹ️ Super Admin password updated');
     }
 
-    console.log('✅ Seed process completed');
+    // --- 2. TENANT (Demo Company) ---
+    const tenantSubdomain = 'demo';
+    let tenantId;
+
+    const tenantCheck = await pool.query("SELECT id FROM tenants WHERE subdomain = $1", [tenantSubdomain]);
+
+    if (tenantCheck.rows.length === 0) {
+      const tenantRes = await pool.query(
+        `INSERT INTO tenants (name, subdomain, status, subscription_plan, max_users, max_projects)
+         VALUES ('Demo Company', $1, 'active', 'pro', 10, 10)
+         RETURNING id`,
+        [tenantSubdomain]
+      );
+      tenantId = tenantRes.rows[0].id;
+      console.log('✅ Demo Tenant created');
+    } else {
+      tenantId = tenantCheck.rows[0].id;
+      console.log('ℹ️ Demo Tenant exists');
+    }
+
+    // --- 3. TENANT ADMIN ---
+    const adminEmail = 'admin@demo.com';
+    const adminPass = await bcrypt.hash('Demo@123', 10);
+
+    const adminCheck = await pool.query("SELECT id FROM users WHERE email = $1", [adminEmail]);
+
+    if (adminCheck.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO users (tenant_id, email, password_hash, full_name, role)
+         VALUES ($1, $2, $3, 'Demo Admin', 'tenant_admin')`,
+        [tenantId, adminEmail, adminPass]
+      );
+      console.log('✅ Tenant Admin created');
+    } else {
+      await pool.query("UPDATE users SET password_hash = $1, tenant_id = $2 WHERE email = $3", [adminPass, tenantId, adminEmail]);
+      console.log('ℹ️ Tenant Admin updated');
+    }
+
+    // --- 4. REGULAR USERS (user1, user2) ---
+    const users = [
+      { email: 'user1@demo.com', name: 'User One' },
+      { email: 'user2@demo.com', name: 'User Two' }
+    ];
+    const userPass = await bcrypt.hash('User@123', 10);
+
+    for (const u of users) {
+      const uCheck = await pool.query("SELECT id FROM users WHERE email = $1", [u.email]);
+      if (uCheck.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO users (tenant_id, email, password_hash, full_name, role)
+           VALUES ($1, $2, $3, $4, 'user')`,
+          [tenantId, u.email, userPass, u.name]
+        );
+        console.log(`✅ ${u.name} created`);
+      } else {
+        await pool.query("UPDATE users SET password_hash = $1, tenant_id = $2 WHERE email = $3", [userPass, tenantId, u.email]);
+        console.log(`ℹ️ ${u.name} updated`);
+      }
+    }
+
+    // --- 5. PROJECT ---
+    let projectId;
+    const projectCheck = await pool.query("SELECT id FROM projects WHERE tenant_id = $1 LIMIT 1", [tenantId]);
+
+    if (projectCheck.rows.length === 0) {
+      // We need a creator ID for the project, pick admin
+      const adminIdRes = await pool.query("SELECT id FROM users WHERE email = $1", [adminEmail]);
+      const adminId = adminIdRes.rows[0].id;
+
+      const projRes = await pool.query(
+        `INSERT INTO projects (tenant_id, name, description, created_by, status)
+         VALUES ($1, 'Demo Project', 'Seeded demo project', $2, 'active')
+         RETURNING id`,
+        [tenantId, adminId]
+      );
+      projectId = projRes.rows[0].id;
+      console.log('✅ Demo Project created');
+    } else {
+      projectId = projectCheck.rows[0].id;
+      console.log('ℹ️ Demo Project exists');
+    }
+
+    // --- 6. TASK ---
+    const taskCheck = await pool.query("SELECT id FROM tasks WHERE project_id = $1 LIMIT 1", [projectId]);
+
+    if (taskCheck.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO tasks (tenant_id, project_id, title, description, status, priority)
+         VALUES ($1, $2, 'Demo Task', 'This is a sample task', 'todo', 'medium')`,
+        [tenantId, projectId]
+      );
+      console.log('✅ Demo Task created');
+    } else {
+      console.log('ℹ️ Demo Task exists');
+    }
+
+    console.log('✅ Seed process completed successfully');
   } catch (err) {
-    console.error('❌ Seed failed:', err.message);
-    throw err; // Re-throw the error to be caught by the caller
+    console.error('❌ Seed failed:', err);
+    // Don't exit process, just log error so server can continue if possible
   }
 }
 

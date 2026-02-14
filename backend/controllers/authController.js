@@ -54,8 +54,13 @@ exports.registerTenant = async (req, res) => {
  */
 exports.login = async (req, res) => {
   try {
-    const { email, password, subdomain } = req.body;
+    let { email, password, subdomain, tenantSubdomain } = req.body;
     const urlTenant = req.tenant; // From tenantResolver middleware
+
+    // Requirement compliance: accept tenantSubdomain or subdomain
+    if (!subdomain && tenantSubdomain) {
+      subdomain = tenantSubdomain;
+    }
 
     if (!email || !password) {
       return res.status(400).json({

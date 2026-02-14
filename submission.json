@@ -22,6 +22,11 @@
             "email": "user1@demo.com",
             "password": "User@123",
             "role": "user"
+          },
+          {
+            "email": "user2@demo.com",
+            "password": "User@123",
+            "role": "user"
           }
         ]
       }

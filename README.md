@@ -33,7 +33,7 @@ Built with **React (Vite)**, **Node.js (Express)**, **PostgreSQL**, and **Docker
 
 ## 🎥 Demo Video
 
-[Link to YouTube Demo Video](PUT_YOUR_YOUTUBE_LINK_HERE)
+[Link to YouTube Demo Video](https://youtu.be/80ixL2aDsWs)
 
 ---
 

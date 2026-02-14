@@ -31,6 +31,12 @@ Built with **React (Vite)**, **Node.js (Express)**, **PostgreSQL**, and **Docker
 
 ---
 
+## 🎥 Demo Video
+
+[Link to YouTube Demo Video](PUT_YOUR_YOUTUBE_LINK_HERE)
+
+---
+
 ## ️ Tech Stack
 
 - **Frontend:** React.js, Tailwind CSS, Lucide Icons, Vite.

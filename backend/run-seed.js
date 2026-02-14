@@ -84,40 +84,58 @@ async function seed() {
       }
     }
 
-    // --- 5. PROJECT ---
-    let projectId;
-    const projectCheck = await pool.query("SELECT id FROM projects WHERE tenant_id = $1 LIMIT 1", [tenantId]);
+    // --- 5. PROJECTS (Alpha & Beta) ---
+    const projects = [
+      { name: 'Project Alpha', description: 'First demo project' },
+      { name: 'Project Beta', description: 'Second demo project' }
+    ];
 
-    if (projectCheck.rows.length === 0) {
-      // We need a creator ID for the project, pick admin
-      const adminIdRes = await pool.query("SELECT id FROM users WHERE email = $1", [adminEmail]);
-      const adminId = adminIdRes.rows[0].id;
+    // We need a creator ID for the project, pick admin
+    const adminIdRes = await pool.query("SELECT id FROM users WHERE email = $1", [adminEmail]);
+    const adminId = adminIdRes.rows[0].id;
 
-      const projRes = await pool.query(
-        `INSERT INTO projects (tenant_id, name, description, created_by, status)
-         VALUES ($1, 'Demo Project', 'Seeded demo project', $2, 'active')
-         RETURNING id`,
-        [tenantId, adminId]
-      );
-      projectId = projRes.rows[0].id;
-      console.log('✅ Demo Project created');
-    } else {
-      projectId = projectCheck.rows[0].id;
-      console.log('ℹ️ Demo Project exists');
+    const projectIds = [];
+
+    for (const p of projects) {
+      const pCheck = await pool.query("SELECT id FROM projects WHERE tenant_id = $1 AND name = $2", [tenantId, p.name]);
+      if (pCheck.rows.length === 0) {
+        const projRes = await pool.query(
+          `INSERT INTO projects (tenant_id, name, description, created_by, status)
+           VALUES ($1, $2, $3, $4, 'active')
+           RETURNING id`,
+          [tenantId, p.name, p.description, adminId]
+        );
+        projectIds.push(projRes.rows[0].id);
+        console.log(`✅ ${p.name} created`);
+      } else {
+        projectIds.push(pCheck.rows[0].id);
+        console.log(`ℹ️ ${p.name} exists`);
+      }
     }
 
-    // --- 6. TASK ---
-    const taskCheck = await pool.query("SELECT id FROM tasks WHERE project_id = $1 LIMIT 1", [projectId]);
+    // --- 6. TASKS (5 Tasks) ---
+    const tasks = [
+      { title: 'Design Database Schema', priority: 'high', projIdx: 0 },
+      { title: 'Setup Docker', priority: 'high', projIdx: 0 },
+      { title: 'Implement Auth API', priority: 'medium', projIdx: 0 },
+      { title: 'Frontend Login Page', priority: 'medium', projIdx: 1 },
+      { title: 'User Dashboard', priority: 'low', projIdx: 1 }
+    ];
 
-    if (taskCheck.rows.length === 0) {
-      await pool.query(
-        `INSERT INTO tasks (tenant_id, project_id, title, description, status, priority)
-         VALUES ($1, $2, 'Demo Task', 'This is a sample task', 'todo', 'medium')`,
-        [tenantId, projectId]
-      );
-      console.log('✅ Demo Task created');
-    } else {
-      console.log('ℹ️ Demo Task exists');
+    for (const t of tasks) {
+      const targetProjId = projectIds[t.projIdx];
+      // Check duplicate by title + project
+      const tCheck = await pool.query("SELECT id FROM tasks WHERE project_id = $1 AND title = $2", [targetProjId, t.title]);
+      if (tCheck.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO tasks (tenant_id, project_id, title, description, status, priority)
+           VALUES ($1, $2, $3, 'Seeded task for demonstration', 'todo', $4)`,
+          [tenantId, targetProjId, t.title, t.priority]
+        );
+        console.log(`✅ Task "${t.title}" created`);
+      } else {
+        console.log(`ℹ️ Task "${t.title}" exists`);
+      }
     }
 
     console.log('✅ Seed process completed successfully');
